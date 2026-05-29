@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Expected Utility & Risk: Interactive Explorer</title>
+    <!-- Plotly CDN for interactive graphing (replaces matplotlib widgets) -->
+    <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
+    <!-- MathJax for LaTeX rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" id="MathJax-script" async></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', 'DejaVu Sans', 'Roboto', 'Helvetica Neue', sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 24px 20px;
+            color: #2C2C2A;
+        }
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 28px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+            overflow: hidden;
+            padding: 20px 24px 28px 24px;
+        }
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin: 0 0 0.25rem 0;
+            letter-spacing: -0.3px;
+            color: #1f2c3e;
+        }
+        .subhead {
+            color: #5a6874;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+        }
+        .param-panel {
+            background: #f8fafc;
+            border-radius: 24px;
+            padding: 16px 24px;
+            margin-bottom: 30px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            border: 1px solid #e9edf2;
+        }
+        .slider-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 28px;
+            row-gap: 20px;
+            margin-top: 10px;
+        }
+        .slider-card {
+            flex: 1;
+            min-width: 180px;
+        }
+        .slider-label {
+            font-weight: 600;
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+            color: #1e293b;
+            display: flex;
+            justify-content: space-between;
+        }
+        .slider-label span:first-child {
+            background: #eef2ff;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-family: monospace;
+        }
+        .slider-label .value-display {
+            font-family: 'JetBrains Mono', monospace;
+            background: white;
+            padding: 2px 8px;
+            border-radius: 20px;
+            border: 1px solid #cbd5e1;
+        }
+        input {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #185FA5;
+        }
+        .param-note {
+            font-size: 0.75rem;
+            color: #5b6e8c;
+            margin-top: 6px;
+        }
+        .plot-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        .plot-card {
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+            border: 1px solid #eef2f6;
+            overflow: hidden;
+            transition: all 0.1s ease;
+        }
+        .plot-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 12px 16px 4px 16px;
+            border-bottom: 1px solid #f0f2f5;
+            background: #fefefe;
+            color: #1f3a5f;
+        }
+        .plot-container {
+            height: 280px;
+            width: 100%;
+        }
+        .wide-plot {
+            grid-column: span 2;
+        }
+        .full-width-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .dice-container {
+            background: #fefcf7;
+            border-radius: 20px;
+            border: 1px solid #eef2f6;
+            overflow: hidden;
+        }
+        .dice-header {
+            padding: 10px 16px;
+            font-weight: 600;
+            background: #faf9f5;
+            border-bottom: 1px solid #ece9e0;
+        }
+        .dice-grid-svg {
+            padding: 12px;
+            display: flex;
+            justify-content: center;
+        }
+        .stat-badge {
+            background: #f1f5f9;
+            border-radius: 14px;
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            font-family: monospace;
+        }
+        footer {
+            margin-top: 28px;
+            text-align: center;
+            font-size: 0.7rem;
+            color: #8b9ab0;
+            border-top: 1px solid #eef2f8;
+            padding-top: 18px;
+        }
+        @media (max-width: 900px) {
+            .plot-grid { grid-template-columns: 1fr; }
+            .wide-plot { grid-column: span 1; }
+            .full-width-row { grid-template-columns: 1fr; }
+            .dashboard { padding: 16px; }
+        }
+        .rp-note {
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-top: 8px;
+            text-align: right;
+        }
+        .verdict {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-top: 6px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard">
+    <h1>📊 Expected Utility & Risk Explorer</h1>
+    <div class="subhead">Von Neumann–Morgenstern utility \( u(x) = x^{\,b-1} / b \) · gamble: win +1000·c with prob p(a), lose 1000·d with prob 1-p(a) · initial wealth \(W_0 = 10,\!000 \times b\)</div>
+
+    <div class="param-panel">
+        <div class="slider-grid">
+            <div class="slider-card">
+                <div class="slider-label"><span>🎲 a (win threshold)</span><span id="a_val" class="value-display">6</span></div>
+                <input type="range" id="slider_a" min="2" max="12" step="1" value="6">
+                <div class="param-note">win if dice sum &lt; a</div>
+            </div>
+            <div class="slider-card">
+                <div class="slider-label"><span>📈 b (utility exponent)</span><span id="b_val" class="value-display">8</span></div>
+                <input type="range" id="slider_b" min="2" max="12" step="1" value="8">
+                <div class="param-note">\( u(x)=x^{b-1}/b \) · \(W_0 = 10k \times b\)</div>
+            </div>
+            <div class="slider-card">
+                <div class="slider-label"><span>🏆 c (gain ×1000)</span><span id="c_val" class="value-display">27</span></div>
+                <input type="range" id="slider_c" min="1" max="50" step="1" value="27">
+                <div class="param-note">gain = 1000·c</div>
+            </div>
+            <div class="slider-card">
+                <div class="slider-label"><span>⚠️ d (loss ×1000)</span><span id="d_val" class="value-display">8</span></div>
+                <input type="range" id="slider_d" min="1" max="50" step="1" value="8">
+                <div class="param-note">loss = 1000·d</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- first row: p(a) curve + Dice matrix -->
+    <div class="plot-grid">
+        <div class="plot-card wide-plot">
+            <div class="plot-title">📐 Win probability \(p(a)\) &nbsp;— two fair dice</div>
+            <div id="plot-pa" class="plot-container"></div>
+        </div>
+        <div class="plot-card">
+            <div class="plot-title">🎲 Winning outcomes (green) · sum &lt; a</div>
+            <div id="dice-viz" style="padding: 8px; text-align: center;"></div>
+        </div>
+    </div>
+
+    <!-- second row: EV(c) + EU vs u(W0) + CE/RP summary -->
+    <div class="plot-grid">
+        <div class="plot-card">
+            <div class="plot-title">💵 Expected Value \( \mathrm{EV}(c) \)</div>
+            <div id="plot-ev" class="plot-container"></div>
+        </div>
+        <div class="plot-card">
+            <div class="plot-title">⚖️ Utility comparison: \(u(W_0)\) vs \(\mathrm{EU}\)</div>
+            <div id="plot-eu" class="plot-container"></div>
+            <div id="verdict-text" class="verdict" style="margin-top: -10px; margin-bottom: 8px;"></div>
+        </div>
+        <div class="plot-card">
+            <div class="plot-title">💰 Certainty Equivalent & Risk Premium</div>
+            <div id="plot-rp" class="plot-container"></div>
+            <div id="rp-note" class="rp-note" style="padding: 0 12px 12px 12px;"></div>
+        </div>
+    </div>
+    <footer>
+        ⚡ Interactive explorer: drag sliders → all figures update instantly.<br>
+        Risk premium (RP) = EV − ΔCE. RP>0 → risk averse, RP<0 → risk loving, RP=0 → neutral.
+    </footer>
+</div>
+
+<script>
+    // ---------- core math (mirroring python logic) ----------
+    function countWins(a) {
+        let wins = 0;
+        for (let i=1; i<=6; i++) {
+            for (let j=1; j<=6; j++) {
+                if (i+j < a) wins++;
+            }
+        }
+        return wins;
+    }
+    function winProb(a) {
+        return countWins(a) / 36;
+    }
+    function utility(x, b) {
+        if (x <= 0) return 0; // safety
+        return Math.pow(x, b-1) / b;
+    }
+    function computeAll(a, b, c, d) {
+        const p = winProb(a);
+        const W0 = 10000 * b;
+        const gain = 1000 * c;
+        const loss = 1000 * d;
+        const Wwin = W0 + gain;
+        const Wlose = W0 - loss;
+        const EV = p * gain - (1-p) * loss;
+        const uW0 = utility(W0, b);
+        const EU = p * utility(Wwin, b) + (1-p) * utility(Wlose, b);
+        let CE = NaN, dCE = NaN, RP = NaN;
+        try {
+            // CE: u(CE) = EU  => CE^(b-1)/b = EU => CE = (b * EU)^(1/(b-1))
+            if (EU > 0 && b !== 1) {
+                CE = Math.pow(b * EU, 1/(b-1));
+                dCE = CE - W0;
+                RP = EV - dCE;
+            } else {
+                // edge case: b=1 would be log utility but b≥2 in slider so fine
+                CE = W0;
+                dCE = 0;
+                RP = EV;
+            }
+        } catch(e) { /* keep NaN */ }
+        return { p, W0, gain, loss, Wwin, Wlose, EV, EU, uW0, CE, dCE, RP, wins: countWins(a) };
+    }
+
+    // precompute p(a) data for all thresholds 2..12
+    const aRange = Array.from({length: 11}, (_, i) => i+2);
+    const pAll = aRange.map(a => winProb(a));
+    const exactFractions = aRange.map(a => `${countWins(a)}/36`);
+
+    // DOM elements
+    const sliderA = document.getElementById('slider_a');
+    const sliderB = document.getElementById('slider_b');
+    const sliderC = document.getElementById('slider_c');
+    const sliderD = document.getElementById('slider_d');
+    const aVal = document.getElementById('a_val');
+    const bVal = document.getElementById('b_val');
+    const cVal = document.getElementById('c_val');
+    const dVal = document.getElementById('d_val');
+
+    // Plotly containers
+    const plotPaDiv = document.getElementById('plot-pa');
+    const plotEvDiv = document.getElementById('plot-ev');
+    const plotEuDiv = document.getElementById('plot-eu');
+    const plotRpDiv = document.getElementById('plot-rp');
+    const diceContainer = document.getElementById('dice-viz');
+    const verdictSpan = document.getElementById('verdict-text');
+    const rpNoteSpan = document.getElementById('rp-note');
+
+    let currentData = { a:6, b:8, c:27, d:8 };
+    
+    // ---------- helper: render dice grid (HTML/CSS) ----------
+    function renderDiceGrid(a) {
+        let html = `<div style="display:inline-block; background:#fcf9f2; border-radius:16px; padding:6px;">`;
+        html += `<div style="display:grid; grid-template-columns:repeat(6, 48px); gap:4px; justify-content:center;">`;
+        // header row numbers
+        html += `<div style="grid-column:1/-1; display:flex; justify-content:space-around; margin-bottom:5px;"><span>⚀</span><span>⚁</span><span>⚂</span><span>⚃</span><span>⚄</span><span>⚅</span></div>`;
+        for (let i=1; i<=6; i++) {
+            for (let j=1; j<=6; j++) {
+                const sum = i+j;
+                const isWin = sum < a;
+                const bgColor = isWin ? '#9FE1CB' : '#E2DFD4';
+                const textColor = isWin ? '#1F5E4B' : '#5C5A52';
+                html += `<div style="background:${bgColor}; width:48px; height:48px; display:flex; align-items:center; justify-content:center; border-radius:12px; font-weight:600; font-size:1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05); color:${textColor};">${sum}</div>`;
+            }
+        }
+        html += `</div></div>`;
+        diceContainer.innerHTML = html;
+    }
+
+    // ---------- Plotly Graph: p(a) curve ----------
+    let figPa = null;
+    function updatePaPlot(a, pCurr, winsCurr) {
+        const highlightTrace = {
+            x: [a], y: [pCurr], mode: 'markers', type: 'scatter',
+            marker: { size: 14, color: '#993C1D', symbol: 'circle', line: { width: 2, color: 'white' } },
+            name: 'current a'
+        };
+        const vline = {
+            type: 'scatter', mode: 'lines', x: [a, a], y: [0, pCurr],
+            line: { color: '#993C1D', width: 1.8, dash: 'dash' }, showlegend: false, hoverinfo: 'skip'
+        };
+        const hline = {
+            type: 'scatter', mode: 'lines', x: [1.8, 12.2], y: [pCurr, pCurr],
+            line: { color: '#0F6E56', width: 1.5, dash: 'dot' }, showlegend: false, hoverinfo: 'skip'
+        };
+        const annotations = [];
+        for (let i=0; i<aRange.length; i++) {
+            annotations.push({
+                x: aRange[i], y: pAll[i] + 0.035, text: exactFractions[i],
+                showarrow: false, font: { size: 9, color: '#767c82' }, xanchor: 'center'
+            });
+        }
+        annotations.push({
+            x: a, y: pCurr + 0.07, text: `p = ${winsCurr}/36 = ${pCurr.toFixed(4)}`, showarrow: true,
+            arrowhead: 2, arrowsize: 0.9, arrowcolor: '#993C1D', ax: 35, ay: -25,
+            font: { size: 10, color: '#993C1D' }, bgcolor: 'rgba(255,255,220,0.7)'
+        });
+        const data = [
+            { x: aRange, y: pAll, mode: 'lines+markers', type: 'scatter', name: 'p(a)', line: { color: '#185FA5', width: 2.5 }, marker: { size: 6, color: '#185FA5' } },
+            highlightTrace, vline, hline
+        ];
+        const layout = {
+            title: { text: '', font: { size: 13 } }, margin: { t: 30, l: 45, r: 20, b: 40 },
+            xaxis: { title: 'Threshold a (win if dice sum < a)', tickvals: aRange, range: [1.5, 12.5] },
+            yaxis: { title: 'Win probability p', tickformat: '.0%', range: [-0.03, 1.08] },
+            hovermode: 'closest', plot_bgcolor: '#F8F8F6', paper_bgcolor: 'white',
+            annotations: annotations, showlegend: true, legend: { orientation: 'h', yanchor: 'bottom', y: 1.02, xanchor: 'right' }
+        };
+        if (figPa) Plotly.react(plotPaDiv, data, layout);
+        else figPa = Plotly.newPlot(plotPaDiv, data, layout);
+    }
+
+    // ---------- Plot EV(c) dynamic ----------
+    let figEv = null;
+    function updateEvPlot(a, cCurr, dCurr, b, EVcurr) {
+        const p = winProb(a);
+        const cVals = Array.from({length: 50}, (_,i) => i+1);
+        const evVals = cVals.map(c => p * 1000 * c - (1-p) * 1000 * dCurr);
+        const cStar = p>0 ? ((1-p)*dCurr)/p : 0;
+        const data = [
+            { x: cVals, y: evVals, type: 'scatter', mode: 'lines', name: 'EV(c)', line: { color: '#0F6E56', width: 2.5 } },
+            { x: [cCurr], y: [EVcurr], mode: 'markers', type: 'scatter', name: 'current c', marker: { color: '#993C1D', size: 10, symbol: 'circle' } },
+            { x: [cStar, cStar], y: [Math.min(...evVals)*0.8, Math.max(...evVals)*1.1], mode: 'lines', line: { color: '#9aa9b9', width: 1, dash: 'dot' }, name: `c* = ${cStar.toFixed(1)}`, showlegend: true }
+        ];
+        const yMax = Math.max(...evVals, 0) * 1.12;
+        const yMin = Math.min(...evVals, 0) * 1.08;
+        const layout = {
+            margin: { t: 30, l: 45, r: 20, b: 40 }, xaxis: { title: 'Win-gain multiplier c', range: [0.5, 51] },
+            yaxis: { title: 'Expected Value ($)', tickformat: '$,.0f', range: [yMin, yMax] }, plot_bgcolor: '#F8F8F6', paper_bgcolor: 'white'
+        };
+        if (figEv) Plotly.react(plotEvDiv, data, layout);
+        else figEv = Plotly.newPlot(plotEvDiv, data, layout);
+    }
+
+    // EU vs u(W0) horizontal bar chart (Plotly)
+    let figEu = null;
+    function updateEuPlot(uW0, EU, accept) {
+        const data = [
+            { x: [uW0], y: ['u(W₀)'], type: 'bar', orientation: 'h', name: 'u(W₀)', marker: { color: '#534AB7' }, text: [uW0.toExponential(3)], textposition: 'inside', insidetextanchor: 'start' },
+            { x: [EU], y: ['EU'], type: 'bar', orientation: 'h', name: 'EU', marker: { color: '#185FA5' }, text: [EU.toExponential(3)], textposition: 'inside' }
+        ];
+        const maxVal = Math.max(uW0, EU, 1e-6) * 1.3;
+        const layout = {
+            title: '', xaxis: { title: 'Utility value', type: 'linear', tickformat: '.2e', range: [0, maxVal] },
+            yaxis: { title: '', automargin: true }, barmode: 'group', margin: { l: 70, t: 20, r: 20, b: 30 },
+            plot_bgcolor: '#F8F8F6', paper_bgcolor: 'white', showlegend: true
+        };
+        if (figEu) Plotly.react(plotEuDiv, data, layout);
+        else figEu = Plotly.newPlot(plotEuDiv, data, layout);
+        const verdict = accept ? '✅ Accept gamble' : '❌ Reject gamble';
+        const color = accept ? '#0F6E56' : '#993C1D';
+        verdictSpan.innerHTML = `<span style="color:${color};">${verdict}</span>`;
+    }
+
+    // CE, EV, DeltaCE, RP horizontal bars
+    let figRp = null;
+    function updateRpSummary(evVal, dceVal, rpVal, rpRaw) {
+        const labels = ['EV', 'ΔCE (CE - W₀)', '|RP|'];
+        const values = [evVal, dceVal, Math.abs(rpVal)];
+        let rpType = 'Risk-neutral (RP ≈ 0)';
+        let colorNote = '#888780';
+        if (!isNaN(rpRaw) && rpRaw > 0.1) { rpType = '🛡️ Risk-averse (RP > 0)'; colorNote = '#0F6E56'; }
+        else if (!isNaN(rpRaw) && rpRaw < -0.1) { rpType = '🚀 Risk-loving (RP < 0)'; colorNote = '#993C1D'; }
+        else if (!isNaN(rpRaw) && Math.abs(rpRaw) <= 0.1) rpType = '⚖️ Risk-neutral (RP ≈ 0)';
+        rpNoteSpan.innerHTML = `<span style="color:${colorNote};">${rpType}</span> &nbsp; | RP = ${!isNaN(rpRaw) ? rpRaw.toFixed(0) : 'N/A'}`;
+        const barColors = ['#0F6E56', '#185FA5', '#854F0B'];
+        const data = [{
+            y: labels, x: values, type: 'bar', orientation: 'h', marker: { color: barColors },
+            text: values.map(v => `$${Math.abs(v).toFixed(0)}`), textposition: 'outside', insidetextanchor: 'start'
+        }];
+        const maxVal = Math.max(...values, 100) * 1.2;
+        const layout = { margin: { l: 100, t: 20, r: 60, b: 25 }, xaxis: { title: 'Value ($)', tickformat: '$,.0f', range: [0, maxVal] }, yaxis: { automargin: true }, plot_bgcolor: '#F8F8F6', paper_bgcolor: 'white' };
+        if (figRp) Plotly.react(plotRpDiv, data, layout);
+        else figRp = Plotly.newPlot(plotRpDiv, data, layout);
+    }
+
+    // ------- master update that recomputes everything -------
+    function refresh() {
+        const a = parseInt(sliderA.value, 10);
+        const b = parseInt(sliderB.value, 10);
+        const c = parseInt(sliderC.value, 10);
+        const d = parseInt(sliderD.value, 10);
+        aVal.innerText = a; bVal.innerText = b; cVal.innerText = c; dVal.innerText = d;
+        currentData = { a, b, c, d };
+        const r = computeAll(a, b, c, d);
+        // update dice grid
+        renderDiceGrid(a);
+        // update p(a) plot
+        updatePaPlot(a, r.p, r.wins);
+        // update EV(c) plot
+        updateEvPlot(a, c, d, b, r.EV);
+        // EU bar
+        updateEuPlot(r.uW0, r.EU, r.EU >= r.uW0);
+        // Risk summary bars
+        const dceSafe = isNaN(r.dCE) ? 0 : r.dCE;
+        const rpSafe = isNaN(r.RP) ? 0 : r.RP;
+        updateRpSummary(r.EV, dceSafe, rpSafe, r.RP);
+    }
+
+    // attach event listeners
+    function bindSliders() {
+        const sliders = [sliderA, sliderB, sliderC, sliderD];
+        sliders.forEach(sl => sl.addEventListener('input', () => refresh()));
+    }
+    bindSliders();
+    // initial render
+    refresh();
+    // add window resize hook for plotly responsiveness (optional)
+    window.addEventListener('resize', () => {
+        if (figPa) Plotly.relayout(plotPaDiv, {autosize: true});
+        if (figEv) Plotly.relayout(plotEvDiv, {autosize: true});
+        if (figEu) Plotly.relayout(plotEuDiv, {autosize: true});
+        if (figRp) Plotly.relayout(plotRpDiv, {autosize: true});
+    });
+</script>
+</body>
+</html>
