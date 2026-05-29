@@ -412,7 +412,7 @@
         };
         if (figEu) Plotly.react(plotEuDiv, data, layout);
         else figEu = Plotly.newPlot(plotEuDiv, data, layout);
-        const verdict = accept ? '✅ Accept gamble' : '❌ Reject gamble';
+        const verdict = accept ? '✔️ Accept gamble' : '❌ Reject gamble';
         const color = accept ? '#0F6E56' : '#993C1D';
         verdictSpan.innerHTML = `<span style="color:${color};">${verdict}</span>`;
     }
@@ -424,9 +424,9 @@
         const values = [evVal, dceVal, Math.abs(rpVal)];
         let rpType = 'Risk-neutral (RP ≈ 0)';
         let colorNote = '#888780';
-        if (!isNaN(rpRaw) && rpRaw > 0.1) { rpType = '🛡️ Risk-averse (RP > 0)'; colorNote = '#0F6E56'; }
-        else if (!isNaN(rpRaw) && rpRaw < -0.1) { rpType = '🚀 Risk-loving (RP < 0)'; colorNote = '#993C1D'; }
-        else if (!isNaN(rpRaw) && Math.abs(rpRaw) <= 0.1) rpType = '⚖️ Risk-neutral (RP ≈ 0)';
+        if (!isNaN(rpRaw) && rpRaw > 0.1) { rpType = 'Risk-averse (RP > 0)'; colorNote = '#0F6E56'; }
+        else if (!isNaN(rpRaw) && rpRaw < -0.1) { rpType = 'Risk-loving (RP < 0)'; colorNote = '#993C1D'; }
+        else if (!isNaN(rpRaw) && Math.abs(rpRaw) <= 0.1) rpType = 'Risk-neutral (RP ≈ 0)';
         rpNoteSpan.innerHTML = `<span style="color:${colorNote};">${rpType}</span> &nbsp; | RP = ${!isNaN(rpRaw) ? rpRaw.toFixed(0) : 'N/A'}`;
         const barColors = ['#0F6E56', '#185FA5', '#854F0B'];
         const data = [{
