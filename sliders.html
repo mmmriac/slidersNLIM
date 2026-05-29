@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Expected Utility & Risk: Interactive Explorer</title>
-    <!-- Plotly CDN for interactive graphing (replaces matplotlib widgets) -->
     <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
-    <!-- MathJax for LaTeX rendering -->
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" id="MathJax-script" async></script>
     <style>
         * {
@@ -181,28 +179,28 @@
 </head>
 <body>
 <div class="dashboard">
-    <h1>📊 Expected Utility & Risk Explorer</h1>
-    <div class="subhead">Von Neumann–Morgenstern utility \( u(x) = x^{\,b-1} / b \) · gamble: win +1000·c with prob p(a), lose 1000·d with prob 1-p(a) · initial wealth \(W_0 = 10,\!000 \times b\)</div>
+    <h1>Gamble scenarios based on the personal characteristics of a player</h1>
+    <div class="subhead">Von Neumann–Morgenstern utility \( u(x) = x^{\,b-1} / b \) ···· gamble: win +1000·c with prob p(a), lose 1000·d with prob 1-p(a) ···· initial wealth \(W_0 = 10,\!000 \times b\)</div>
 
     <div class="param-panel">
         <div class="slider-grid">
             <div class="slider-card">
-                <div class="slider-label"><span>🎲 a (win threshold)</span><span id="a_val" class="value-display">6</span></div>
+                <div class="slider-label"><span> a (win threshold)</span><span id="a_val" class="value-display">6</span></div>
                 <input type="range" id="slider_a" min="2" max="12" step="1" value="6">
                 <div class="param-note">win if dice sum &lt; a</div>
             </div>
             <div class="slider-card">
-                <div class="slider-label"><span>📈 b (utility exponent)</span><span id="b_val" class="value-display">8</span></div>
+                <div class="slider-label"><span> b (utility exponent)</span><span id="b_val" class="value-display">8</span></div>
                 <input type="range" id="slider_b" min="2" max="12" step="1" value="8">
                 <div class="param-note">\( u(x)=x^{b-1}/b \) · \(W_0 = 10k \times b\)</div>
             </div>
             <div class="slider-card">
-                <div class="slider-label"><span>🏆 c (gain ×1000)</span><span id="c_val" class="value-display">27</span></div>
+                <div class="slider-label"><span> c (gain ×1000)</span><span id="c_val" class="value-display">27</span></div>
                 <input type="range" id="slider_c" min="1" max="50" step="1" value="27">
                 <div class="param-note">gain = 1000·c</div>
             </div>
             <div class="slider-card">
-                <div class="slider-label"><span>⚠️ d (loss ×1000)</span><span id="d_val" class="value-display">8</span></div>
+                <div class="slider-label"><span> d (loss ×1000)</span><span id="d_val" class="value-display">8</span></div>
                 <input type="range" id="slider_d" min="1" max="50" step="1" value="8">
                 <div class="param-note">loss = 1000·d</div>
             </div>
@@ -212,11 +210,11 @@
     <!-- first row: p(a) curve + Dice matrix -->
     <div class="plot-grid">
         <div class="plot-card wide-plot">
-            <div class="plot-title">📐 Win probability \(p(a)\) &nbsp;— two fair dice</div>
+            <div class="plot-title"> Win probability \(p(a)\) &nbsp;— two fair dice</div>
             <div id="plot-pa" class="plot-container"></div>
         </div>
         <div class="plot-card">
-            <div class="plot-title">🎲 Winning outcomes (green) · sum &lt; a</div>
+            <div class="plot-title"> Winning outcomes (green) · sum &lt; a</div>
             <div id="dice-viz" style="padding: 8px; text-align: center;"></div>
         </div>
     </div>
@@ -224,16 +222,16 @@
     <!-- second row: EV(c) + EU vs u(W0) + CE/RP summary -->
     <div class="plot-grid">
         <div class="plot-card">
-            <div class="plot-title">💵 Expected Value \( \mathrm{EV}(c) \)</div>
+            <div class="plot-title"> Expected Value \( \mathrm{EV}(c) \)</div>
             <div id="plot-ev" class="plot-container"></div>
         </div>
         <div class="plot-card">
-            <div class="plot-title">⚖️ Utility comparison: \(u(W_0)\) vs \(\mathrm{EU}\)</div>
+            <div class="plot-title"> Utility comparison: \(u(W_0)\) vs \(\mathrm{EU}\)</div>
             <div id="plot-eu" class="plot-container"></div>
             <div id="verdict-text" class="verdict" style="margin-top: -10px; margin-bottom: 8px;"></div>
         </div>
         <div class="plot-card">
-            <div class="plot-title">💰 Certainty Equivalent & Risk Premium</div>
+            <div class="plot-title"> Certainty Equivalent & Risk Premium</div>
             <div id="plot-rp" class="plot-container"></div>
             <div id="rp-note" class="rp-note" style="padding: 0 12px 12px 12px;"></div>
         </div>
