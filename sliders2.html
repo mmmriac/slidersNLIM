@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Task 3 – Aggregate Loss Simulation</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -219,20 +219,35 @@
   #overlay {
     display: none;
     position: fixed; inset: 0;
-    background: rgba(255,255,255,0.55);
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(2px);
     z-index: 999;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     font-weight: 600;
     color: var(--navy);
+    flex-direction: column;
+    gap: 1rem;
   }
   #overlay.active { display: flex; }
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--border);
+    border-top-color: var(--navy);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 
-<div id="overlay">Simulating…</div>
+<div id="overlay">
+  <div class="spinner"></div>
+  <span>Simulating 200,000 paths...</span>
+</div>
 
 <header>
   <h1>Task 3 — Aggregate Loss Simulation &amp; Risk Measures</h1>
@@ -251,9 +266,9 @@
     </div>
     <div class="slider-card">
       <label>b<sub>M</sub> — Pareto shape α <span id="bVal">8</span></label>
-      <div class="sublabel">Shape α: higher → lighter tail (α > 1 required)</div>
-      <input type="range" id="slB" min="2" step="1" max="20" value="8">
-      <div class="slider-bounds"><span>2</span><span>20</span></div>
+      <div class="sublabel">Shape α: higher → lighter tail (α > 2 required for finite variance)</div>
+      <input type="range" id="slB" min="2.1" step="0.1" max="20" value="8">
+      <div class="slider-bounds"><span>2.1</span><span>20</span></div>
     </div>
     <div class="slider-card">
       <label>c<sub>M</sub> — scale multiplier <span id="cVal">27</span></label>
@@ -271,13 +286,13 @@
 
   <!-- Run row -->
   <div class="run-row">
-    <button id="runBtn" onclick="runSim()">Run simulation (200 k paths)</button>
+    <button id="runBtn">Run simulation (200k paths)</button>
     <span id="statusMsg">Adjust sliders, then run.</span>
   </div>
 
   <!-- Theory table (instant, no sim needed) -->
   <div class="theory-section">
-    <h3>Theoretical moments</h3>
+    <h3>Theoretical moments (based on parameters)</h3>
     <div class="theory-grid">
       <div>
         <div class="theory-row"><span class="t-label">λ = E[N] = Var[N]</span><span class="t-val" id="tLam">—</span></div>
@@ -292,7 +307,7 @@
         <div class="theory-row"><span class="t-label">SD[S] = √(λ·E[X²])</span><span class="t-val" id="tSDS">—</span></div>
       </div>
       <div>
-        <div class="theory-row"><span class="t-label">Skewness γ₁</span><span class="t-val" id="tSkew">—</span></div>
+        <div class="theory-row"><span class="t-label">Skewness γ₁ (theoretical)</span><span class="t-val" id="tSkew">—</span></div>
         <div class="theory-row"><span class="t-label">Normal VaR approx.</span><span class="t-val" id="tNormVar">—</span></div>
         <div class="theory-row"><span class="t-label">P(N = 0)</span><span class="t-val" id="tPN0">—</span></div>
       </div>
@@ -338,25 +353,25 @@
     <div class="chart-card">
       <h3>Loss distribution (histogram)</h3>
       <div class="chart-wrap">
-        <canvas id="chartHist" role="img" aria-label="Histogram of aggregate loss distribution with VaR and TVaR marked">Aggregate loss histogram.</canvas>
+        <canvas id="chartHist">Aggregate loss histogram.</canvas>
       </div>
     </div>
     <div class="chart-card">
       <h3>Empirical CDF</h3>
       <div class="chart-wrap">
-        <canvas id="chartCDF" role="img" aria-label="Empirical CDF of aggregate losses">Empirical CDF.</canvas>
+        <canvas id="chartCDF">Empirical CDF.</canvas>
       </div>
     </div>
     <div class="chart-card">
       <h3>Risk measures comparison</h3>
       <div class="chart-wrap">
-        <canvas id="chartBar" role="img" aria-label="Bar chart comparing E[S], VaR and TVaR">Risk measures bar chart.</canvas>
+        <canvas id="chartBar">Risk measures bar chart.</canvas>
       </div>
     </div>
     <div class="chart-card">
       <h3>Tail distribution S | S &gt; VaR<sub>q</sub></h3>
       <div class="chart-wrap">
-        <canvas id="chartTail" role="img" aria-label="Histogram of tail losses above VaR">Tail distribution histogram.</canvas>
+        <canvas id="chartTail">Tail distribution histogram.</canvas>
       </div>
     </div>
   </div>
@@ -366,46 +381,50 @@
     Set your parameters and run the simulation to see the interpretation.
   </div>
 
-</div><!-- /main -->
+</div>
 
 <script>
 // ── Chart instances ───────────────────────────────────────────────────────
 let charts = {};
 
 function destroyAll() {
-  ['chartHist','chartCDF','chartBar','chartTail'].forEach(id => {
-    if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  ['chartHist', 'chartCDF', 'chartBar', 'chartTail'].forEach(id => {
+    if (charts[id]) { 
+      charts[id].destroy(); 
+      delete charts[id]; 
+    }
   });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-function fmt(n, dec=0) {
-  if (isNaN(n) || n === null) return '—';
+function fmt(n, dec = 0) {
+  if (isNaN(n) || n === null || n === undefined) return '—';
   return '$' + Number(n.toFixed(dec)).toLocaleString('en-US');
 }
-function fmtN(n, dec=2) {
+function fmtN(n, dec = 2) {
   if (isNaN(n) || n === null) return '—';
   return Number(n.toFixed(dec)).toLocaleString('en-US');
 }
+
 function normInv(p) {
-  // rational approximation (Beasley-Springer-Moran)
-  const a = [0,-3.969683028665376e+01,2.209460984245205e+02,-2.759285104469687e+02,1.383577518672690e+02,-3.066479806614716e+01,2.506628277459239e+00];
-  const b = [0,-5.447609879822406e+01,1.615858368580409e+02,-1.556989798598866e+02,6.680131188771972e+01,-1.328068155288572e+01];
-  const c = [0,-7.784894002430293e-03,-3.223964580411365e-01,-2.400758277161838e+00,-2.549732539343734e+00,4.374664141464968e+00,2.938163982698783e+00];
-  const d = [0,7.784695709041462e-03,3.224671290700398e-01,2.445134137142996e+00,3.754408661907416e+00];
-  const plo=0.02425, phi=1-plo;
-  let q,r;
-  if(p<plo){ q=Math.sqrt(-2*Math.log(p)); return (((((c[1]*q+c[2])*q+c[3])*q+c[4])*q+c[5])*q+c[6])/(((d[1]*q+d[2])*q+d[3])*q+d[4]); }
-  if(p<=phi){ q=p-0.5; r=q*q; return (((((a[1]*r+a[2])*r+a[3])*r+a[4])*r+a[5])*r+a[6])*q/(((((b[1]*r+b[2])*r+b[3])*r+b[4])*r+b[5])*r+1); }
-  q=Math.sqrt(-2*Math.log(1-p)); return -(((((c[1]*q+c[2])*q+c[3])*q+c[4])*q+c[5])*q+c[6])/(((d[1]*q+d[2])*q+d[3])*q+d[4]);
+  // Approximation (Beasley-Springer-Moran)
+  const a = [0, -3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+  const b = [0, -5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
+  const c = [0, -7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+  const d = [0, 7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
+  const plo = 0.02425, phi = 1 - plo;
+  let q, r;
+  if (p < plo) { q = Math.sqrt(-2 * Math.log(p)); return (((((c[1]*q+c[2])*q+c[3])*q+c[4])*q+c[5])*q+c[6]) / (((d[1]*q+d[2])*q+d[3])*q+d[4]); }
+  if (p <= phi) { q = p - 0.5; r = q * q; return (((((a[1]*r+a[2])*r+a[3])*r+a[4])*r+a[5])*r + a[6]) * q / (((((b[1]*r+b[2])*r+b[3])*r+b[4])*r+b[5])*r + 1); }
+  q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[1]*q+c[2])*q+c[3])*q+c[4])*q+c[5])*q+c[6]) / (((d[1]*q+d[2])*q+d[3])*q+d[4]);
 }
 
 // ── Pareto inverse CDF sampler ────────────────────────────────────────────
 function paretoSample(n, alpha, theta) {
   const out = new Float64Array(n);
-  for (let i=0; i<n; i++) {
+  for (let i = 0; i < n; i++) {
     const u = Math.random();
-    out[i] = theta * (Math.pow(u, -1/alpha) - 1);
+    out[i] = theta * (Math.pow(u, -1 / alpha) - 1);
   }
   return out;
 }
@@ -414,299 +433,233 @@ function paretoSample(n, alpha, theta) {
 function poissonSample(n, lam) {
   const out = new Int32Array(n);
   const L = Math.exp(-lam);
-  for (let i=0; i<n; i++) {
-    let k=0, p=1;
+  for (let i = 0; i < n; i++) {
+    let k = 0, p = 1;
     do { k++; p *= Math.random(); } while (p > L);
-    out[i] = k-1;
+    out[i] = k - 1;
   }
   return out;
 }
 
-// ── Histogram binning ─────────────────────────────────────────────────────
+// ── Histogram binning (density) ───────────────────────────────────────────
 function histogram(data, nBins, minV, maxV) {
   const bins = new Array(nBins).fill(0);
   const w = (maxV - minV) / nBins;
-  for (let i=0; i<data.length; i++) {
-    const b = Math.min(Math.floor((data[i]-minV)/w), nBins-1);
-    if (b >= 0) bins[b]++;
+  for (let i = 0; i < data.length; i++) {
+    let b = Math.floor((data[i] - minV) / w);
+    if (b >= 0 && b < nBins) bins[b]++;
   }
-  const centers = Array.from({length:nBins}, (_,i) => minV + (i+0.5)*w);
-  const total = data.length * w;
-  return { centers, density: bins.map(c=>c/total), counts: bins, width: w };
+  const centers = Array.from({ length: nBins }, (_, i) => minV + (i + 0.5) * w);
+  const total = data.length;
+  return { centers, density: bins.map(c => c / total), counts: bins, width: w };
 }
 
-// ── Quantile helper ───────────────────────────────────────────────────────
+// ── Quantile helper (sorted array) ───────────────────────────────────────
 function quantile(sorted, p) {
   const idx = p * (sorted.length - 1);
   const lo = Math.floor(idx), hi = Math.ceil(idx);
-  return sorted[lo] + (sorted[hi]-sorted[lo])*(idx-lo);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
 }
 
 // ── Update theory panel (instant) ────────────────────────────────────────
 function updateTheory() {
-  const lam   = +document.getElementById('slA').value;
+  const lam = +document.getElementById('slA').value;
   const alpha = +document.getElementById('slB').value;
   const theta = +document.getElementById('slC').value * 1000;
   const qConf = 1 - +document.getElementById('slD').value / 100;
 
-  const EX  = theta / (alpha - 1);
-  const EX2 = 2 * theta**2 / ((alpha-1)*(alpha-2));
-  const EX3 = 6 * theta**3 / ((alpha-1)*(alpha-2)*(alpha-3));
-  const VarX = EX2 - EX**2;
-  const ES   = lam * EX;
+  if (alpha <= 2) {
+    document.getElementById('tEX').textContent = '∞ (α≤2)';
+    document.getElementById('tSDX').textContent = '∞';
+    document.getElementById('tES').textContent = '∞';
+    document.getElementById('tSDS').textContent = '∞';
+    return;
+  }
+  const EX = theta / (alpha - 1);
+  const EX2 = 2 * theta ** 2 / ((alpha - 1) * (alpha - 2));
+  const EX3 = (alpha > 3) ? 6 * theta ** 3 / ((alpha - 1) * (alpha - 2) * (alpha - 3)) : Infinity;
+  const VarX = EX2 - EX ** 2;
+  const ES = lam * EX;
   const VarS = lam * EX2;
-  const SDS  = Math.sqrt(VarS);
-  const skew = (lam * EX3) / VarS**1.5;
+  const SDS = Math.sqrt(VarS);
+  const skew = (EX3 !== Infinity && VarS > 0) ? (lam * EX3) / (VarS ** 1.5) : NaN;
   const normVar = ES + normInv(qConf) * SDS;
   const pN0 = Math.exp(-lam);
 
-  document.getElementById('tLam').textContent  = fmtN(lam, 0);
-  document.getElementById('tAlpha').textContent = fmtN(alpha, 0);
+  document.getElementById('tLam').textContent = fmtN(lam, 0);
+  document.getElementById('tAlpha').textContent = fmtN(alpha, 1);
   document.getElementById('tTheta').textContent = '$' + theta.toLocaleString();
-  document.getElementById('tQ').textContent     = fmtN(qConf, 3);
-  document.getElementById('tEX').textContent    = '$' + Math.round(EX).toLocaleString();
-  document.getElementById('tSDX').textContent   = '$' + Math.round(Math.sqrt(VarX)).toLocaleString();
-  document.getElementById('tES').textContent    = '$' + Math.round(ES).toLocaleString();
-  document.getElementById('tSDS').textContent   = '$' + Math.round(SDS).toLocaleString();
-  document.getElementById('tSkew').textContent  = fmtN(skew, 4);
+  document.getElementById('tQ').textContent = fmtN(qConf, 3);
+  document.getElementById('tEX').textContent = '$' + Math.round(EX).toLocaleString();
+  document.getElementById('tSDX').textContent = '$' + Math.round(Math.sqrt(VarX)).toLocaleString();
+  document.getElementById('tES').textContent = '$' + Math.round(ES).toLocaleString();
+  document.getElementById('tSDS').textContent = '$' + Math.round(SDS).toLocaleString();
+  document.getElementById('tSkew').textContent = isNaN(skew) ? '∞ (α≤3)' : fmtN(skew, 3);
   document.getElementById('tNormVar').textContent = '$' + Math.round(normVar).toLocaleString();
-  document.getElementById('tPN0').textContent   = (pN0*100).toFixed(3) + '%';
+  document.getElementById('tPN0').textContent = (pN0 * 100).toFixed(2) + '%';
 }
 
 // ── Slider listeners ──────────────────────────────────────────────────────
-['slA','slB','slC','slD'].forEach((id, i) => {
-  const valId = ['aVal','bVal','cVal','dVal'][i];
-  document.getElementById(id).addEventListener('input', function() {
-    document.getElementById(valId).textContent = this.value;
-    updateTheory();
-  });
+['slA', 'slB', 'slC', 'slD'].forEach((id, i) => {
+  const valId = ['aVal', 'bVal', 'cVal', 'dVal'][i];
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input', function() {
+      document.getElementById(valId).textContent = this.value;
+      updateTheory();
+    });
+  }
 });
 updateTheory();
 
 // ── Main simulation ───────────────────────────────────────────────────────
-function runSim() {
-  const lam   = +document.getElementById('slA').value;
-  const alpha = +document.getElementById('slB').value;
+async function runSim() {
+  const lam = +document.getElementById('slA').value;
+  let alpha = +document.getElementById('slB').value;
   const theta = +document.getElementById('slC').value * 1000;
   const qConf = 1 - +document.getElementById('slD').value / 100;
-  const nSim  = 200000;
+  const nSim = 200000;
 
   if (alpha <= 2) {
-    alert('b_M must be > 2 so that Var[X] is finite (α > 2 required). Please increase b_M.');
+    alert('b_M must be > 2 so that variance is finite. Please increase b_M (currently ' + alpha.toFixed(1) + ').');
     return;
   }
 
-  document.getElementById('overlay').classList.add('active');
-  document.getElementById('runBtn').disabled = true;
-  document.getElementById('statusMsg').textContent = 'Running…';
+  const overlay = document.getElementById('overlay');
+  const runBtn = document.getElementById('runBtn');
+  overlay.classList.add('active');
+  runBtn.disabled = true;
+  document.getElementById('statusMsg').textContent = 'Simulating 200k paths...';
 
+  // Run simulation asynchronously (non-blocking)
   setTimeout(() => {
-    // simulate
-    const Nsim = poissonSample(nSim, lam);
-    const totalClaims = Nsim.reduce((a,b)=>a+b, 0);
-    const Xpool = paretoSample(totalClaims, alpha, theta);
+    try {
+      // Simulate claim counts and severities
+      const Nsim = poissonSample(nSim, lam);
+      let totalClaims = 0;
+      for (let i = 0; i < nSim; i++) totalClaims += Nsim[i];
+      
+      const Xpool = paretoSample(totalClaims, alpha, theta);
+      const S = new Float64Array(nSim);
+      let cursor = 0;
+      for (let i = 0; i < nSim; i++) {
+        let s = 0;
+        const n = Nsim[i];
+        for (let j = 0; j < n; j++) s += Xpool[cursor++];
+        S[i] = s;
+      }
 
-    const S = new Float64Array(nSim);
-    let cursor = 0;
-    for (let i=0; i<nSim; i++) {
-      let s = 0;
-      const n = Nsim[i];
-      for (let j=0; j<n; j++) s += Xpool[cursor++];
-      S[i] = s;
-    }
-
-    // sort for quantile + CDF
-    const Ssorted = Float64Array.from(S).sort();
-
-    const varVal  = quantile(Ssorted, qConf);
-    const tail    = [];
-    for (let i=0; i<nSim; i++) { if (S[i] > varVal) tail.push(S[i]); }
-    const tvarVal = tail.reduce((a,b)=>a+b,0) / tail.length;
-    const esim    = S.reduce((a,b)=>a+b,0) / nSim;
-    let sdsim = 0;
-    for (let i=0; i<nSim; i++) sdsim += (S[i]-esim)**2;
-    sdsim = Math.sqrt(sdsim/nSim);
-
-    // theory
-    const EX  = theta / (alpha - 1);
-    const EX2 = 2 * theta**2 / ((alpha-1)*(alpha-2));
-    const ES  = lam * EX;
-    const SDS = Math.sqrt(lam * EX2);
-    const normVar = ES + normInv(qConf) * SDS;
-    const normErr = ((varVal - normVar)/varVal*100).toFixed(1);
-
-    // ── Update metric cards ──────────────────────────────────────────────
-    document.getElementById('mES').textContent   = fmt(esim);
-    document.getElementById('mSDS').textContent  = fmt(sdsim);
-    document.getElementById('mVaR').textContent  = fmt(varVal);
-    document.getElementById('mVaRsub').textContent = qConf.toFixed(2) + ' quantile · ' + (varVal/esim).toFixed(2) + '× E[S]';
-    document.getElementById('mTVaR').textContent = fmt(tvarVal);
-    document.getElementById('mTVaRsub').textContent = 'E[S|S>VaR] · ' + (tvarVal/esim).toFixed(2) + '× E[S]';
-    document.getElementById('mExcess').textContent = fmt(tvarVal - varVal);
-    document.getElementById('mRatio').textContent = (tvarVal/varVal).toFixed(3) + '×';
-
-    // ── Charts ───────────────────────────────────────────────────────────
-    destroyAll();
-
-    const cap995 = quantile(Ssorted, 0.995);
-    const Strim  = Array.from(S).filter(v => v <= cap995);
-
-    // 1. Histogram
-    const nBins = 60;
-    const h = histogram(Strim, nBins, 0, cap995);
-    const NAVY='#1B2A4A', ORANGE='#E8772A', OGRID='rgba(0,0,0,0.07)';
-
-    charts['chartHist'] = new Chart(document.getElementById('chartHist'), {
-      type: 'bar',
-      data: {
-        labels: h.centers.map(v => Math.round(v/1000)+'k'),
-        datasets: [{
-          data: h.density,
-          backgroundColor: h.centers.map(v => v > varVal ? ORANGE+'cc' : NAVY+'cc'),
-          borderWidth: 0,
-          barPercentage: 1.0, categoryPercentage: 1.0
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { title: (t)=>'$'+Math.round(h.centers[t[0].dataIndex]).toLocaleString(), label: (t)=>'density: '+t.raw.toExponential(2) } },
-          annotation: { annotations: {
-            var_line: { type:'line', xMin: h.centers.findIndex(c=>c>=varVal), xMax: h.centers.findIndex(c=>c>=varVal), borderColor: ORANGE, borderWidth: 2, borderDash:[4,3], label:{display:true,content:'VaR',position:'start',color:ORANGE,font:{size:10}} },
-            tvar_line: { type:'line', xMin: h.centers.findIndex(c=>c>=tvarVal), xMax: h.centers.findIndex(c=>c>=tvarVal), borderColor: ORANGE, borderWidth: 2, label:{display:true,content:'TVaR',position:'start',color:ORANGE,font:{size:10}} }
-          }}
-        },
-        scales: {
-          x: { ticks: { maxTicksLimit: 8, font:{size:10}, color:'#666', callback: (_,i) => i%8===0 ? Math.round(h.centers[i]/1000)+'k':null }, grid:{color:OGRID} },
-          y: { ticks: { font:{size:10}, color:'#666' }, grid:{color:OGRID}, title:{display:true,text:'Density',font:{size:10},color:'#666'} }
+      // Sort for quantiles
+      const Ssorted = Float64Array.from(S).sort((a, b) => a - b);
+      const varVal = quantile(Ssorted, qConf);
+      
+      // Tail for TVaR
+      let sumTail = 0, cntTail = 0;
+      for (let i = 0; i < nSim; i++) {
+        if (S[i] > varVal) {
+          sumTail += S[i];
+          cntTail++;
         }
       }
-    });
+      const tvarVal = sumTail / cntTail;
+      
+      // Mean and Std Dev
+      let sumS = 0;
+      for (let i = 0; i < nSim; i++) sumS += S[i];
+      const esim = sumS / nSim;
+      let sqSum = 0;
+      for (let i = 0; i < nSim; i++) sqSum += (S[i] - esim) ** 2;
+      const sdsim = Math.sqrt(sqSum / nSim);
 
-    // 2. CDF
-    const cdfN = 200;
-    const step = cap995 / cdfN;
-    const cdfX = Array.from({length:cdfN},(_,i)=>(i+1)*step);
-    const cdfY = cdfX.map(v => Ssorted.filter(s=>s<=v).length / nSim);
-    // approximate with sorted array bisect for speed
-    function bisectCount(arr, v) {
-      let lo=0, hi=arr.length;
-      while(lo<hi){ const mid=(lo+hi)>>1; if(arr[mid]<=v) lo=mid+1; else hi=mid; }
-      return lo;
-    }
-    const cdfYfast = cdfX.map(v => bisectCount(Ssorted, v) / nSim);
+      // Theoretical for comparison
+      const EX = theta / (alpha - 1);
+      const EX2 = 2 * theta ** 2 / ((alpha - 1) * (alpha - 2));
+      const ES = lam * EX;
+      const SDS = Math.sqrt(lam * EX2);
+      const normVar = ES + normInv(qConf) * SDS;
+      const normErr = ((varVal - normVar) / varVal * 100).toFixed(1);
 
-    const varIdx = cdfX.findIndex(v => v >= varVal);
+      // Update metric cards
+      document.getElementById('mES').textContent = fmt(esim);
+      document.getElementById('mSDS').textContent = fmt(sdsim);
+      document.getElementById('mVaR').textContent = fmt(varVal);
+      document.getElementById('mVaRsub').textContent = qConf.toFixed(3) + ' quantile · ' + (varVal/esim).toFixed(2) + '× E[S]';
+      document.getElementById('mTVaR').textContent = fmt(tvarVal);
+      document.getElementById('mTVaRsub').textContent = 'E[S|S>VaR] · ' + (tvarVal/esim).toFixed(2) + '× E[S]';
+      document.getElementById('mExcess').textContent = fmt(tvarVal - varVal);
+      document.getElementById('mRatio').textContent = (tvarVal/varVal).toFixed(3) + '×';
 
-    charts['chartCDF'] = new Chart(document.getElementById('chartCDF'), {
-      type: 'line',
-      data: {
-        labels: cdfX.map(v=>Math.round(v/1000)+'k'),
-        datasets: [
-          { data: cdfYfast, borderColor: NAVY, borderWidth: 1.5, pointRadius: 0, tension: 0.1, fill: false },
-          { data: Array(cdfN).fill(qConf), borderColor: ORANGE, borderWidth: 1, borderDash:[4,3], pointRadius: 0 }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { title: (t)=>'$'+Math.round(cdfX[t[0].dataIndex]).toLocaleString(), label: (t)=>'F(s): '+t.raw.toFixed(3) } }
+      // Destroy old charts
+      destroyAll();
+
+      const NAVY = '#1B2A4A';
+      const ORANGE = '#E8772A';
+      const OGRID = 'rgba(0,0,0,0.07)';
+      
+      // Histogram (trim at 99.5th percentile for readability)
+      const cap995 = quantile(Ssorted, 0.995);
+      const Strim = Array.from(S).filter(v => v <= cap995);
+      const nBins = 50;
+      const h = histogram(Strim, nBins, 0, cap995);
+      
+      charts['chartHist'] = new Chart(document.getElementById('chartHist'), {
+        type: 'bar',
+        data: {
+          labels: h.centers.map(v => Math.round(v/1000) + 'k'),
+          datasets: [{
+            data: h.density,
+            backgroundColor: h.centers.map(v => v > varVal ? ORANGE + 'cc' : NAVY + 'cc'),
+            borderWidth: 0,
+            barPercentage: 0.9,
+            categoryPercentage: 1.0
+          }]
         },
-        scales: {
-          x: { ticks: { maxTicksLimit: 8, font:{size:10}, color:'#666', callback:(_,i)=>i%25===0?Math.round(cdfX[i]/1000)+'k':null }, grid:{color:OGRID} },
-          y: { min:0, max:1.05, ticks:{font:{size:10},color:'#666'}, grid:{color:OGRID}, title:{display:true,text:'F(s)',font:{size:10},color:'#666'} }
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { title: (t) => '$' + Math.round(h.centers[t[0].dataIndex]).toLocaleString(), label: (t) => 'density: ' + t.raw.toExponential(3) } } },
+          scales: { x: { ticks: { maxTicksLimit: 8, font: { size: 9 }, callback: (_, i) => i % 8 === 0 ? Math.round(h.centers[i]/1000)+'k' : '' }, grid: { color: OGRID } }, y: { title: { display: true, text: 'Density', font: { size: 10 } }, grid: { color: OGRID } } }
         }
+      });
+
+      // CDF
+      const cdfN = 200;
+      const cdfMax = cap995;
+      const stepCDF = cdfMax / cdfN;
+      const cdfX = Array.from({ length: cdfN }, (_, i) => (i + 1) * stepCDF);
+      const cdfY = cdfX.map(v => {
+        let lo = 0, hi = Ssorted.length;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (Ssorted[mid] <= v) lo = mid + 1; else hi = mid; }
+        return lo / nSim;
+      });
+      
+      charts['chartCDF'] = new Chart(document.getElementById('chartCDF'), {
+        type: 'line',
+        data: { labels: cdfX.map(v => Math.round(v/1000)+'k'), datasets: [{ data: cdfY, borderColor: NAVY, borderWidth: 1.5, pointRadius: 0, fill: false }, { data: Array(cdfN).fill(qConf), borderColor: ORANGE, borderWidth: 1.5, borderDash: [5, 5], pointRadius: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (t) => 'F(s) = ' + t.raw.toFixed(4) } } }, scales: { x: { ticks: { maxTicksLimit: 8 } }, y: { title: { display: true, text: 'Cumulative Probability' }, min: 0, max: 1 } } }
+      });
+
+      // Bar chart
+      charts['chartBar'] = new Chart(document.getElementById('chartBar'), {
+        type: 'bar',
+        data: { labels: ['E[S]', 'VaR (' + qConf.toFixed(3) + ')', 'TVaR (' + qConf.toFixed(3) + ')'], datasets: [{ data: [esim, varVal, tvarVal], backgroundColor: [NAVY, ORANGE, ORANGE], borderRadius: 6 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { title: { display: true, text: 'Loss ($)' }, ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } } } }
+      });
+
+      // Tail histogram
+      const tailData = Array.from(S).filter(v => v > varVal);
+      if (tailData.length > 10) {
+        const tailMax = quantile(tailData.sort((a,b)=>a-b), 0.95);
+        const hTail = histogram(tailData, 35, varVal, tailMax);
+        charts['chartTail'] = new Chart(document.getElementById('chartTail'), {
+          type: 'bar',
+          data: { labels: hTail.centers.map(v => Math.round(v/1000)+'k'), datasets: [{ data: hTail.density, backgroundColor: ORANGE + 'aa', borderWidth: 0, barPercentage: 0.9 }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { title: { display: true, text: 'Loss ($)' } }, y: { title: { display: true, text: 'Density (tail conditional)' } } } }
+        });
       }
-    });
 
-    // 3. Bar chart
-    charts['chartBar'] = new Chart(document.getElementById('chartBar'), {
-      type: 'bar',
-      data: {
-        labels: ['E[S]', 'VaR(' + qConf.toFixed(2) + ')', 'TVaR(' + qConf.toFixed(2) + ')'],
-        datasets: [{
-          data: [esim, varVal, tvarVal],
-          backgroundColor: [NAVY+'cc', ORANGE+'cc', ORANGE],
-          borderWidth: 0
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: t => '$' + Math.round(t.raw).toLocaleString() } },
-          datalabels: { display: false }
-        },
-        scales: {
-          x: { ticks:{font:{size:10},color:'#666'}, grid:{color:OGRID} },
-          y: { ticks:{font:{size:10},color:'#666', callback:v=>'$'+Math.round(v/1000)+'k'}, grid:{color:OGRID} }
-        }
-      }
-    });
-
-    // 4. Tail histogram
-    const tailSorted = tail.slice().sort((a,b)=>a-b);
-    const tailCap = tailSorted[Math.floor(tailSorted.length*0.99)];
-    const ht = histogram(tail.filter(v=>v<=tailCap), 40, varVal, tailCap);
-
-    const tvarIdx = ht.centers.findIndex(c=>c>=tvarVal);
-
-    charts['chartTail'] = new Chart(document.getElementById('chartTail'), {
-      type: 'bar',
-      data: {
-        labels: ht.centers.map(v=>Math.round(v/1000)+'k'),
-        datasets: [{
-          data: ht.density,
-          backgroundColor: ht.centers.map((v,i) => i >= tvarIdx ? ORANGE : NAVY+'cc'),
-          borderWidth: 0,
-          barPercentage: 1.0, categoryPercentage: 1.0
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { title:(t)=>'$'+Math.round(ht.centers[t[0].dataIndex]).toLocaleString(), label:(t)=>'density: '+t.raw.toExponential(2) } }
-        },
-        scales: {
-          x: { ticks:{maxTicksLimit:6,font:{size:10},color:'#666',callback:(_,i)=>i%8===0?Math.round(ht.centers[i]/1000)+'k':null}, grid:{color:OGRID} },
-          y: { ticks:{font:{size:10},color:'#666'}, grid:{color:OGRID}, title:{display:true,text:'Density',font:{size:10},color:'#666'} }
-        }
-      }
-    });
-
-    // ── Interpretation ────────────────────────────────────────────────────
-    const normalBias = normErr > 0 ? `Normal approximation <em>under</em>-estimates VaR by ${Math.abs(normErr)}% — confirming the heavy-tailed Pareto tail dominates.`
-      : `Normal approximation is within ${Math.abs(normErr)}% of simulated VaR — the tail is relatively mild at these parameters.`;
-
-    const riskType = alpha <= 4 ? 'extremely heavy (finite variance only barely, moments beyond order 4 are infinite)'
-      : alpha <= 8 ? 'heavy (sub-exponential, single catastrophic claims drive extremes)'
-      : 'moderately heavy (moments up to order ' + (alpha-1) + ' are finite)';
-
-    document.getElementById('interpBox').innerHTML = `
-      <strong>Parameters:</strong> λ=${lam}, α=${alpha}, θ=$${theta.toLocaleString()}, q=${qConf.toFixed(3)}
-      &nbsp;|&nbsp; <strong>Paths:</strong> 200,000<br><br>
-      The aggregate loss S has mean <strong>${fmt(esim)}</strong> and SD <strong>${fmt(sdsim)}</strong>.
-      The Pareto tail is ${riskType}.<br><br>
-      At confidence q=${qConf.toFixed(3)}: <strong>VaR = ${fmt(varVal)}</strong> (${(varVal/esim).toFixed(2)}× E[S])
-      and <strong>TVaR = ${fmt(tvarVal)}</strong> (${(tvarVal/esim).toFixed(2)}× E[S]).
-      The TVaR−VaR gap of <strong>${fmt(tvarVal-varVal)}</strong> is the average shortfall
-      an insurer holding only VaR-level capital would face across the worst ${((1-qConf)*100).toFixed(0)}% of scenarios.
-      The ratio TVaR/VaR = <strong>${(tvarVal/varVal).toFixed(3)}</strong> measures tail severity beyond the VaR boundary.<br><br>
-      ${normalBias}
-    `;
-
-    document.getElementById('overlay').classList.remove('active');
-    document.getElementById('runBtn').disabled = false;
-    document.getElementById('statusMsg').textContent = 'Done — ' + new Date().toLocaleTimeString();
-
-  }, 30);
-}
-</script>
-</body>
-</html>
-HTMLEOF
-
-
+      // Interpretation
+      const riskType = alpha <= 3 ? 'extremely heavy (no finite skewness)' : (alpha <= 5 ? 'very heavy (finite mean and variance, but high kurtosis)' : 'moderately heavy');
+      const normalBias = normErr > 0 ? `Normal approximation <strong>under-estimates</strong> VaR by ${Math.abs(normErr)}% — reflecting heavy tail behavior.` : `Normal approximation is within ${Math.abs(normErr)}% of simulated VaR.`;
+      document.getElementById('interpBox').innerHTML = `<strong>Parameters:</strong> λ=${lam}, α=${alpha.toFixed(1)}, θ=$${theta.toLocaleString()}, q=${qConf.toFixed(3)}<br><br>
+      Aggregate loss mean <strong>${fmt(esim)}</strong>, SD <strong>${fmt(sdsim)}</strong>. The Pareto tail is ${riskType}.<br><br>
+      At q=${qConf.toFixed(3)}: <strong>VaR = ${fmt(varVal)}</strong> (${(var
